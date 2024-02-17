@@ -16,13 +16,11 @@ import {
 } from 'kea'
 import { router } from 'kea-router'
 import { delay } from 'kea-test-utils'
-import { windowValues } from 'kea-window-values'
 import { FEATURE_FLAGS } from 'lib/constants'
 import { now } from 'lib/dayjs'
 import { featureFlagLogic } from 'lib/logic/featureFlagLogic'
 import { clamp, downloadFile, fromParamsGivenUrl } from 'lib/utils'
 import { eventUsageLogic } from 'lib/utils/eventUsageLogic'
-import { getBreakpoint } from 'lib/utils/responsiveUtils'
 import { wrapConsole } from 'lib/utils/wrapConsole'
 import posthog from 'posthog-js'
 import { RefObject } from 'react'
@@ -44,6 +42,7 @@ import { createExportedSessionRecording } from '../file-playback/sessionRecordin
 import type { sessionRecordingsPlaylistLogicType } from '../playlist/sessionRecordingsPlaylistLogicType'
 import { playerSettingsLogic } from './playerSettingsLogic'
 import { COMMON_REPLAYER_CONFIG, CorsPlugin } from './rrweb'
+import { CanvasReplayerPlugin } from './rrweb/canvas/canvas-plugin'
 import type { sessionRecordingPlayerLogicType } from './sessionRecordingPlayerLogicType'
 import { deleteRecording } from './utils/playerUtils'
 import { SessionRecordingPlayerExplorerProps } from './view-explorer/SessionRecordingPlayerExplorer'
@@ -526,6 +525,10 @@ export const sessionRecordingPlayerLogic = kea<sessionRecordingPlayerLogicType>(
                 plugins.push(CorsPlugin)
             }
 
+            if (values.featureFlags[FEATURE_FLAGS.SESSION_REPLAY_CANVAS]) {
+                plugins.push(CanvasReplayerPlugin(values.sessionPlayerData.snapshotsByWindowId[windowId]))
+            }
+
             cache.debug?.('tryInitReplayer', {
                 windowId,
                 rootFrame: values.rootFrame,
@@ -1003,9 +1006,6 @@ export const sessionRecordingPlayerLogic = kea<sessionRecordingPlayerLogicType>(
             }
         },
     })),
-    windowValues({
-        isSmallScreen: (window: Window) => window.innerWidth < getBreakpoint('md'),
-    }),
 
     beforeUnmount(({ values, actions, cache, props }) => {
         if (props.mode === SessionRecordingPlayerMode.Preview) {

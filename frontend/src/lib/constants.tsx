@@ -24,7 +24,6 @@ export const NON_VALUES_ON_SERIES_DISPLAY_TYPES = [
 /** Display types for which a percent stack view is available. */
 export const PERCENT_STACK_VIEW_DISPLAY_TYPE = [
     ChartDisplayType.ActionsBar,
-    ChartDisplayType.ActionsLineGraph,
     ChartDisplayType.ActionsAreaGraph,
     ChartDisplayType.ActionsPie,
 ]
@@ -95,6 +94,9 @@ export const INSTANTLY_AVAILABLE_PROPERTIES = [
     '$geoip_continent_code',
     '$geoip_postal_code',
     '$geoip_time_zone',
+    // Person and group identifiers
+    '$group_key',
+    'distinct_id',
 ]
 
 // Event constants
@@ -144,7 +146,6 @@ export const FEATURE_FLAGS = {
     QUERY_TIMINGS: 'query-timings', // owner: @mariusandra
     QUERY_ASYNC: 'query-async', // owner: @webjunkie
     POSTHOG_3000_NAV: 'posthog-3000-nav', // owner: @Twixes
-    POSTHOG_3000_WELCOME_ANNOUNCEMENT: 'posthog-3000-welcome-announcement', // owner: #posthog-3000
     ENABLE_PROMPTS: 'enable-prompts', // owner: @lharries
     HEDGEHOG_MODE: 'hedgehog-mode', // owner: @benjackwhite
     HEDGEHOG_MODE_DEBUG: 'hedgehog-mode-debug', // owner: @benjackwhite
@@ -156,7 +157,7 @@ export const FEATURE_FLAGS = {
     EXCEPTION_AUTOCAPTURE: 'exception-autocapture',
     DATA_WAREHOUSE: 'data-warehouse', // owner: @EDsCODE
     DATA_WAREHOUSE_VIEWS: 'data-warehouse-views', // owner: @EDsCODE
-    DATA_WAREHOUSE_HUBSPOT_IMPORT: 'data-warehouse-hubspot-import', // owner: @EDsCODE
+    DATA_WAREHOUSE_POSTGRES_IMPORT: 'data-warehouse-postgres-import', // owner: @EDsCODE
     FF_DASHBOARD_TEMPLATES: 'ff-dashboard-templates', // owner: @EDsCODE
     SHOW_PRODUCT_INTRO_EXISTING_PRODUCTS: 'show-product-intro-existing-products', // owner: @raquelmsmith
     ARTIFICIAL_HOG: 'artificial-hog', // owner: @Twixes
@@ -170,8 +171,10 @@ export const FEATURE_FLAGS = {
     HOGQL_INSIGHTS_RETENTION: 'hogql-insights-retention', // owner: @webjunkie
     HOGQL_INSIGHTS_TRENDS: 'hogql-insights-trends', // owner: @Gilbert09
     HOGQL_INSIGHTS_STICKINESS: 'hogql-insights-stickiness', // owner: @Gilbert09
+    HOGQL_INSIGHTS_FUNNELS: 'hogql-insights-funnels', // owner: @thmsobrmlr
     HOGQL_INSIGHT_LIVE_COMPARE: 'hogql-insight-live-compare', // owner: @mariusandra
     BI_VIZ: 'bi_viz', // owner: @Gilbert09
+    HOGQL_AUTOCOMPLETE: 'hogql-autocomplete', // owner: @Gilbert09
     WEBHOOKS_DENYLIST: 'webhooks-denylist', // owner: #team-pipeline
     SURVEYS_RESULTS_VISUALIZATIONS: 'surveys-results-visualizations', // owner: @jurajmajerik
     SURVEYS_PAYGATES: 'surveys-paygates',
@@ -192,11 +195,16 @@ export const FEATURE_FLAGS = {
     SESSION_REPLAY_IOS: 'session-replay-ios', // owner: #team-replay
     YEAR_IN_HOG: 'year-in-hog', // owner: #team-replay
     SESSION_REPLAY_EXPORT_MOBILE_DATA: 'session-replay-export-mobile-data', // owner: #team-replay
+    SESSION_REPLAY_CANVAS: 'session-replay-canvas', // owner: #team-replay
     DISCUSSIONS: 'discussions', // owner: #team-replay
     REDIRECT_WEB_PRODUCT_ANALYTICS_ONBOARDING: 'redirect-web-product-analytics-onboarding', // owner: @biancayang
     RECRUIT_ANDROID_MOBILE_BETA_TESTERS: 'recruit-android-mobile-beta-testers', // owner: #team-replay
     SIDEPANEL_STATUS: 'sidepanel-status', // owner: @benjackwhite
+    NEW_FEATURE_FLAG_OPERATORS: 'new-feature-flag-operators', // owner: @neilkakkar
     AI_SESSION_SUMMARY: 'ai-session-summary', // owner: #team-replay
+    PRODUCT_INTRO_PAGES: 'product-intro-pages', // owner: @raquelmsmith
+    DATANODE_CONCURRENCY_LIMIT: 'datanode-concurrency-limit', // owner: @robbie-c
+    SESSION_REPLAY_DOCTOR: 'session-replay-doctor', // owner: #team-replay
 } as const
 export type FeatureFlagKey = (typeof FEATURE_FLAGS)[keyof typeof FEATURE_FLAGS]
 
