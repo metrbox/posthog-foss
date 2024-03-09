@@ -2,6 +2,7 @@ import './EditSurvey.scss'
 
 import { DndContext } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { IconLock, IconPlus, IconTrash } from '@posthog/icons'
 import {
     LemonButton,
     LemonCheckbox,
@@ -16,7 +17,7 @@ import {
 import { BindLogic, useActions, useValues } from 'kea'
 import { FlagSelector } from 'lib/components/FlagSelector'
 import { FEATURE_FLAGS } from 'lib/constants'
-import { IconCancel, IconDelete, IconLock, IconPlus } from 'lib/lemon-ui/icons'
+import { IconCancel } from 'lib/lemon-ui/icons'
 import { LemonField } from 'lib/lemon-ui/LemonField'
 import { featureFlagLogic as enabledFeaturesLogic } from 'lib/logic/featureFlagLogic'
 import { featureFlagLogic } from 'scenes/feature-flags/featureFlagLogic'
@@ -36,16 +37,22 @@ import { surveysLogic } from './surveysLogic'
 export default function SurveyEdit(): JSX.Element {
     const {
         survey,
-        hasTargetingFlag,
         urlMatchTypeValidationError,
         writingHTMLDescription,
         hasTargetingSet,
         selectedQuestion,
         selectedSection,
         isEditingSurvey,
+        targetingFlagFilters,
     } = useValues(surveyLogic)
-    const { setSurveyValue, setWritingHTMLDescription, resetTargeting, setSelectedQuestion, setSelectedSection } =
-        useActions(surveyLogic)
+    const {
+        setSurveyValue,
+        setWritingHTMLDescription,
+        resetTargeting,
+        setSelectedQuestion,
+        setSelectedSection,
+        setFlagPropertyErrors,
+    } = useActions(surveyLogic)
     const { surveysMultipleQuestionsAvailable } = useValues(surveysLogic)
     const { featureFlags } = useValues(enabledFeaturesLogic)
     const sortedItemIds = survey.questions.map((_, idx) => idx.toString())
@@ -77,6 +84,7 @@ export default function SurveyEdit(): JSX.Element {
                     onChange={(section) => {
                         setSelectedSection(section)
                     }}
+                    className="bg-bg-light"
                     panels={[
                         {
                             key: SurveyEditSection.Presentation,
@@ -134,11 +142,11 @@ export default function SurveyEdit(): JSX.Element {
                                                     <PresentationTypeCard
                                                         active={value === SurveyType.Widget}
                                                         onClick={() => onChange(SurveyType.Widget)}
-                                                        title="Feedback button (beta)"
+                                                        title="Feedback button"
                                                         description="Set up a survey based on your own custom button or our prebuilt feedback tab"
                                                         value={SurveyType.Widget}
                                                     >
-                                                        <LemonTag type="warning" className="uppercase ml-2">
+                                                        <LemonTag type="warning" className="uppercase">
                                                             Beta
                                                         </LemonTag>
                                                     </PresentationTypeCard>
@@ -209,7 +217,7 @@ export default function SurveyEdit(): JSX.Element {
                                                                       <div className="flex flex-row w-full items-center justify-between">
                                                                           <b>Confirmation message</b>
                                                                           <LemonButton
-                                                                              icon={<IconDelete />}
+                                                                              icon={<IconTrash />}
                                                                               data-attr="delete-survey-confirmation"
                                                                               onClick={(e) => {
                                                                                   e.stopPropagation()
@@ -221,7 +229,7 @@ export default function SurveyEdit(): JSX.Element {
                                                                                       displayThankYouMessage: false,
                                                                                   })
                                                                               }}
-                                                                              tooltipPlacement="topRight"
+                                                                              tooltipPlacement="top-end"
                                                                           />
                                                                       </div>
                                                                   ),
@@ -530,22 +538,43 @@ export default function SurveyEdit(): JSX.Element {
                                                     logic={featureFlagLogic}
                                                     props={{ id: survey.targeting_flag?.id || 'new' }}
                                                 >
-                                                    {!hasTargetingFlag && (
+                                                    {!targetingFlagFilters && (
                                                         <LemonButton
                                                             type="secondary"
                                                             className="w-max"
                                                             onClick={() => {
-                                                                setSurveyValue('targeting_flag_filters', { groups: [] })
+                                                                setSurveyValue('targeting_flag_filters', {
+                                                                    groups: [
+                                                                        {
+                                                                            properties: [],
+                                                                            rollout_percentage: undefined,
+                                                                            variant: null,
+                                                                        },
+                                                                    ],
+                                                                    multivariate: null,
+                                                                    payloads: {},
+                                                                })
                                                                 setSurveyValue('remove_targeting_flag', false)
                                                             }}
                                                         >
                                                             Add user targeting
                                                         </LemonButton>
                                                     )}
-                                                    {hasTargetingFlag && (
+                                                    {targetingFlagFilters && (
                                                         <>
                                                             <div className="mt-2">
-                                                                <FeatureFlagReleaseConditions excludeTitle={true} />
+                                                                <FeatureFlagReleaseConditions
+                                                                    id={String(survey.targeting_flag?.id) || 'new'}
+                                                                    excludeTitle={true}
+                                                                    filters={targetingFlagFilters}
+                                                                    onChange={(filters, errors) => {
+                                                                        setFlagPropertyErrors(errors)
+                                                                        setSurveyValue(
+                                                                            'targeting_flag_filters',
+                                                                            filters
+                                                                        )
+                                                                    }}
+                                                                />
                                                             </div>
                                                             <LemonButton
                                                                 type="secondary"

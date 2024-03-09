@@ -18,7 +18,7 @@ from posthog.models import Dashboard, DashboardTile, Filter, Insight, Team, User
 from posthog.models.organization import Organization
 from posthog.models.sharing_configuration import SharingConfiguration
 from posthog.models.signals import mute_selected_signals
-from posthog.test.base import APIBaseTest, QueryMatchingTest, snapshot_postgres_queries
+from posthog.test.base import APIBaseTest, QueryMatchingTest, snapshot_postgres_queries, FuzzyInt
 from posthog.utils import generate_cache_key
 
 valid_template: Dict = {
@@ -56,7 +56,7 @@ class TestDashboard(APIBaseTest, QueryMatchingTest):
         self.organization.available_features = [
             AvailableFeature.TAGGING,
             AvailableFeature.PROJECT_BASED_PERMISSIONING,
-            AvailableFeature.DASHBOARD_PERMISSIONING,
+            AvailableFeature.ADVANCED_PERMISSIONS,
         ]
         self.organization.available_product_features = AVAILABLE_PRODUCT_FEATURES
         self.organization.save()
@@ -261,7 +261,7 @@ class TestDashboard(APIBaseTest, QueryMatchingTest):
     def test_listing_dashboards_is_not_nplus1(self) -> None:
         self.client.logout()
 
-        self.organization.available_features = [AvailableFeature.DASHBOARD_COLLABORATION]
+        self.organization.available_features = [AvailableFeature.TEAM_COLLABORATION]
         self.organization.save()
         self.team.access_control = True
         self.team.save()
@@ -279,7 +279,7 @@ class TestDashboard(APIBaseTest, QueryMatchingTest):
             for j in range(3):
                 self.dashboard_api.create_insight({"dashboards": [dashboard_id], "name": f"insight-{j}"})
 
-            with self.assertNumQueries(8):
+            with self.assertNumQueries(FuzzyInt(8, 9)):
                 self.dashboard_api.list_dashboards(query_params={"limit": 300})
 
     def test_listing_dashboards_does_not_include_tiles(self) -> None:

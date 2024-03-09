@@ -121,7 +121,11 @@ def property_to_expr(
     if property.type == "hogql":
         return parse_expr(property.key)
     elif (
-        property.type == "event" or property.type == "feature" or property.type == "person" or property.type == "group"
+        property.type == "event"
+        or property.type == "feature"
+        or property.type == "person"
+        or property.type == "group"
+        or property.type == "data_warehouse"
     ):
         if scope == "person" and property.type != "person":
             raise NotImplementedException(
@@ -131,9 +135,14 @@ def property_to_expr(
         value = property.value
 
         if property.type == "person" and scope != "person":
-            chain = ["person", "properties"]
+            if property.table:
+                chain = ["person", property.table]
+            else:
+                chain = ["person", "properties"]
         elif property.type == "group":
             chain = [f"group_{property.group_type_index}", "properties"]
+        elif property.type == "data_warehouse":
+            chain = []
         else:
             chain = ["properties"]
         field = ast.Field(chain=chain + [property.key])

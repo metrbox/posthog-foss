@@ -12,11 +12,12 @@ from typing import Any, Dict, List, Union, cast
 from unittest import mock
 from unittest.mock import ANY, MagicMock, call, patch
 from urllib.parse import quote
+
 import lzstring
 import pytest
 import structlog
 from django.http import HttpResponse
-from django.test.client import Client, MULTIPART_CONTENT
+from django.test.client import MULTIPART_CONTENT, Client
 from django.utils import timezone
 from freezegun import freeze_time
 from kafka.errors import KafkaError
@@ -27,6 +28,7 @@ from prance import ResolvingParser
 from rest_framework import status
 from token_bucket import Limiter, MemoryStorage
 
+from ee.billing.quota_limiting import QuotaLimitingCaches
 from posthog.api import capture
 from posthog.api.capture import (
     LIKELY_ANONYMOUS_IDS,
@@ -1721,10 +1723,12 @@ class TestCapture(BaseTest):
         replace_limited_team_tokens(
             QuotaResource.RECORDINGS,
             {self.team.api_token: timezone.now().timestamp() + 10000},
+            QuotaLimitingCaches.QUOTA_LIMITER_CACHE_KEY,
         )
         replace_limited_team_tokens(
             QuotaResource.EVENTS,
             {self.team.api_token: timezone.now().timestamp() + 10000},
+            QuotaLimitingCaches.QUOTA_LIMITER_CACHE_KEY,
         )
         self._send_august_2023_version_session_recording_event()
         self.assertEqual(kafka_produce.call_count, 1)
@@ -1732,7 +1736,10 @@ class TestCapture(BaseTest):
     @patch("posthog.kafka_client.client._KafkaProducer.produce")
     @pytest.mark.ee
     def test_quota_limits(self, kafka_produce: MagicMock) -> None:
-        from ee.billing.quota_limiting import QuotaResource, replace_limited_team_tokens
+        from ee.billing.quota_limiting import (
+            QuotaResource,
+            replace_limited_team_tokens,
+        )
 
         def _produce_events():
             kafka_produce.reset_mock()
@@ -1776,13 +1783,16 @@ class TestCapture(BaseTest):
             replace_limited_team_tokens(
                 QuotaResource.EVENTS,
                 {self.team.api_token: timezone.now().timestamp() + 10000},
+                QuotaLimitingCaches.QUOTA_LIMITER_CACHE_KEY,
             )
+
             _produce_events()
             self.assertEqual(kafka_produce.call_count, 1)  # Only the recording event
 
             replace_limited_team_tokens(
                 QuotaResource.RECORDINGS,
                 {self.team.api_token: timezone.now().timestamp() + 10000},
+                QuotaLimitingCaches.QUOTA_LIMITER_CACHE_KEY,
             )
             _produce_events()
             self.assertEqual(kafka_produce.call_count, 0)  # No events
@@ -1790,11 +1800,14 @@ class TestCapture(BaseTest):
             replace_limited_team_tokens(
                 QuotaResource.RECORDINGS,
                 {self.team.api_token: timezone.now().timestamp() - 10000},
+                QuotaLimitingCaches.QUOTA_LIMITER_CACHE_KEY,
             )
             replace_limited_team_tokens(
                 QuotaResource.EVENTS,
                 {self.team.api_token: timezone.now().timestamp() - 10000},
+                QuotaLimitingCaches.QUOTA_LIMITER_CACHE_KEY,
             )
+
             _produce_events()
             self.assertEqual(kafka_produce.call_count, 3)  # All events as limit-until timestamp is in the past
 
@@ -1838,3 +1851,49 @@ class TestCapture(BaseTest):
                 kafka_produce.call_args_list[0][1]["topic"],
                 KAFKA_EVENTS_PLUGIN_INGESTION_HISTORICAL,
             )
+
+    @patch("posthog.kafka_client.client._KafkaProducer.produce")
+    def test_capture_historical_analytics_events_opt_in(self, kafka_produce) -> None:
+        """
+        Based on `historical_migration` flag in the payload, we send data
+        to the KAFKA_EVENTS_PLUGIN_INGESTION_HISTORICAL topic.
+        """
+        resp = self.client.post(
+            "/batch/",
+            data={
+                "data": json.dumps(
+                    {
+                        "api_key": self.team.api_token,
+                        "historical_migration": True,
+                        "batch": [
+                            {
+                                "event": "$autocapture",
+                                "properties": {
+                                    "distinct_id": 2,
+                                    "$elements": [
+                                        {
+                                            "tag_name": "a",
+                                            "nth_child": 1,
+                                            "nth_of_type": 2,
+                                            "attr__class": "btn btn-sm",
+                                        },
+                                        {
+                                            "tag_name": "div",
+                                            "nth_child": 1,
+                                            "nth_of_type": 2,
+                                            "$el_text": "💻",
+                                        },
+                                    ],
+                                },
+                            }
+                        ],
+                    }
+                )
+            },
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(kafka_produce.call_count, 1)
+        self.assertEqual(
+            kafka_produce.call_args_list[0][1]["topic"],
+            KAFKA_EVENTS_PLUGIN_INGESTION_HISTORICAL,
+        )

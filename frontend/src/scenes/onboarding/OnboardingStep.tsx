@@ -1,7 +1,8 @@
+import { IconArrowRight } from '@posthog/icons'
 import { LemonButton, Link } from '@posthog/lemon-ui'
 import { useActions, useValues } from 'kea'
 import { supportLogic } from 'lib/components/Support/supportLogic'
-import { IconArrowRight, IconChevronRight } from 'lib/lemon-ui/icons'
+import { IconChevronRight } from 'lib/lemon-ui/icons'
 import React from 'react'
 
 import { onboardingLogic, OnboardingStepKey, stepKeyToTitle } from './onboardingLogic'
@@ -48,7 +49,7 @@ export const OnboardingStep = ({
                     <h1 className="font-bold m-0 pl-2">
                         {title || stepKeyToTitle(currentOnboardingStep?.props.stepKey)}
                     </h1>
-                    <div className="flex items-center gap-x-3">
+                    <div className="flex items-center gap-x-3" data-attr="onboarding-breadcrumbs">
                         {onboardingStepKeys.map((stepName, idx) => {
                             return (
                                 <React.Fragment key={`stepKey-${idx}`}>
@@ -77,7 +78,7 @@ export const OnboardingStep = ({
                     </div>
                 </div>
             </div>
-            <div className={`${stepKey !== 'product_intro' && 'p-2 max-w-screen-lg mx-auto'}`}>
+            <div className={`${stepKey !== 'product_intro' && 'p-2 max-w-screen-md mx-auto'}`}>
                 {subtitle && <p>{subtitle}</p>}
                 {children}
                 <div className="mt-8 flex justify-end gap-x-2">
