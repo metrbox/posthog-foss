@@ -29,7 +29,6 @@ import { NodeKind } from '~/queries/schema'
 import {
     AnyPropertyFilter,
     EncodedRecordingSnapshot,
-    PerformanceEvent,
     PersonType,
     PropertyFilterType,
     PropertyOperator,
@@ -54,10 +53,6 @@ import { createSegments, mapSnapshotsToWindowId } from './utils/segmenter'
 const IS_TEST_MODE = process.env.NODE_ENV === 'test'
 const BUFFER_MS = 60000 // +- before and after start and end of a recording to query for.
 const DEFAULT_REALTIME_POLLING_MILLIS = 3000
-const REALTIME_POLLING_PARAMS = {
-    source: SnapshotSourceType.realtime,
-    version: '2',
-}
 
 let postHogEEModule: PostHogEE
 
@@ -68,9 +63,10 @@ function isRecordingSnapshot(x: unknown): x is RecordingSnapshot {
 export const parseEncodedSnapshots = async (
     items: (RecordingSnapshot | EncodedRecordingSnapshot | string)[],
     sessionId: string,
-    withMobileTransformer: boolean
+    // this is only kept so that we can export the untransformed data for debugging
+    withMobileTransformer: boolean = true
 ): Promise<RecordingSnapshot[]> => {
-    if (!postHogEEModule && withMobileTransformer) {
+    if (!postHogEEModule) {
         postHogEEModule = await posthogEE()
     }
     const lineCount = items.length
@@ -126,26 +122,25 @@ const getHrefFromSnapshot = (snapshot: RecordingSnapshot): string | undefined =>
     return (snapshot.data as any)?.href || (snapshot.data as any)?.payload?.href
 }
 
-// PerformanceEvent timestamp is for some reason string | number, yuck
-function asInt(x: string | number): number {
-    return typeof x === 'number' ? x : parseInt(x)
-}
-
-function getSnapshotSortingTimestamp(e: eventWithTime | undefined): number | undefined {
-    if (!e) {
-        return undefined
+/*
+    cyrb53 (c) 2018 bryc (github.com/bryc)
+    License: Public domain. Attribution appreciated.
+    A fast and simple 53-bit string hash function with decent collision resistance.
+    Largely inspired by MurmurHash2/3, but with a focus on speed/simplicity.
+*/
+const cyrb53 = function (str: string, seed = 0): number {
+    let h1 = 0xdeadbeef ^ seed,
+        h2 = 0x41c6ce57 ^ seed
+    for (let i = 0, ch; i < str.length; i++) {
+        ch = str.charCodeAt(i)
+        h1 = Math.imul(h1 ^ ch, 2654435761)
+        h2 = Math.imul(h2 ^ ch, 1597334677)
     }
-    // rrweb network events have a timestamp, but might contain requests from before the recording started
-    if (e.type === EventType.Plugin && e.data.plugin === 'rrweb/network@1') {
-        const requests: PerformanceEvent[] = e.data.payload?.['requests'] || []
-        const sortedRequests = requests.sort(
-            (a: PerformanceEvent, b: PerformanceEvent) => asInt(a.timestamp) - asInt(b.timestamp)
-        )
-        const firstTimestamp = sortedRequests.length ? sortedRequests[0].timestamp : undefined
-        // if we have no requests, we use the event timestamp
-        return firstTimestamp !== undefined ? asInt(firstTimestamp) : e.timestamp
-    }
-    return e.timestamp
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507)
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507)
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0)
 }
 
 export const deduplicateSnapshots = (
@@ -164,7 +159,11 @@ export const deduplicateSnapshots = (
             // we can see duplicates that only differ by delay - these still count as duplicates
             // even though the delay would hide that
             const { delay: _delay, ...delayFreeSnapshot } = snapshot
-            const key = JSON.stringify(delayFreeSnapshot)
+            // we check each item multiple times as new snapshots come in
+            // so store the computer value on the object to save recalculating it so much
+            const key = (snapshot as any).seen || cyrb53(JSON.stringify(delayFreeSnapshot))
+            ;(snapshot as any).seen = key
+
             if (seenHashes.has(key)) {
                 return false
             } else {
@@ -172,7 +171,7 @@ export const deduplicateSnapshots = (
                 return true
             }
         })
-        .sort((a, b) => (getSnapshotSortingTimestamp(a) || 0) - (getSnapshotSortingTimestamp(b) || 0))
+        .sort((a, b) => a.timestamp - b.timestamp)
 }
 
 const generateRecordingReportDurations = (cache: Record<string, any>): RecordingReportLoadTimes => {
@@ -237,11 +236,7 @@ async function processEncodedResponse(
     let untransformed: RecordingSnapshot[] | null = null
 
     const transformed = deduplicateSnapshots(
-        await parseEncodedSnapshots(
-            encodedResponse,
-            props.sessionRecordingId,
-            !!featureFlags[FEATURE_FLAGS.SESSION_REPLAY_MOBILE]
-        ),
+        await parseEncodedSnapshots(encodedResponse, props.sessionRecordingId),
         existingData?.snapshots ?? []
     )
 
@@ -476,10 +471,9 @@ export const sessionRecordingDataLogic = kea<sessionRecordingDataLogicType>([
             null as SessionPlayerSnapshotData | null,
             {
                 pollRecordingSnapshots: async (_, breakpoint: BreakPointFunction) => {
-                    const params = { ...REALTIME_POLLING_PARAMS }
-
-                    if (values.featureFlags[FEATURE_FLAGS.SESSION_REPLAY_V3_INGESTION_PLAYBACK]) {
-                        params.version = '3'
+                    const params = {
+                        version: values.featureFlags[FEATURE_FLAGS.SESSION_REPLAY_V3_INGESTION_PLAYBACK] ? '3' : '2',
+                        source: SnapshotSourceType.realtime,
                     }
 
                     await breakpoint(1) // debounce
@@ -768,16 +762,9 @@ export const sessionRecordingDataLogic = kea<sessionRecordingDataLogicType>([
         ],
 
         start: [
-            (s) => [s.sessionPlayerMetaData, s.sessionPlayerSnapshotData],
-            (meta, sessionPlayerSnapshotData): Dayjs | undefined => {
-                // NOTE: We might end up with more snapshots than we knew about when we started the recording so we
-                // either use the metadata start point or the first snapshot, whichever is earlier.
-                const start = meta?.start_time ? dayjs(meta.start_time) : undefined
-                const snapshots = sessionPlayerSnapshotData?.snapshots || []
-                const firstEventTimestamp = getSnapshotSortingTimestamp(snapshots[0])
-                return firstEventTimestamp && firstEventTimestamp < (start?.valueOf() ?? 0)
-                    ? dayjs(firstEventTimestamp)
-                    : start
+            (s) => [s.sessionPlayerMetaData],
+            (meta): Dayjs | undefined => {
+                return meta?.start_time ? dayjs(meta.start_time) : undefined
             },
         ],
 

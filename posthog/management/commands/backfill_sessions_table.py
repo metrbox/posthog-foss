@@ -7,24 +7,30 @@ from typing import Optional
 import structlog
 from django.core.management.base import BaseCommand
 
+from posthog.clickhouse.client.connection import Workload
 from posthog.clickhouse.client.execute import sync_execute
 from posthog.models.property.util import get_property_string_expr
 from datetime import datetime, timedelta
 
 logger = structlog.get_logger(__name__)
 
-
 TARGET_TABLE = "sessions"
+
+SETTINGS = {
+    "max_execution_time": 3600  # 1 hour
+}
 
 
 @dataclass
 class BackfillQuery:
     start_date: datetime
     end_date: datetime
+    use_offline_workload: bool
 
     def execute(
         self,
         dry_run: bool = True,
+        print_counts: bool = True,
     ) -> None:
         def source_column(column_name: str) -> str:
             return get_property_string_expr(
@@ -107,13 +113,14 @@ WHERE `$session_id` IS NOT NULL AND `$session_id` != '' AND {where}
         """
 
         # print the count of entries in the main sessions table
-        count_query = f"SELECT count(), uniq(session_id) FROM {TARGET_TABLE}"
-        [(sessions_row_count, sessions_event_count)] = sync_execute(count_query)
-        logger.info(f"{sessions_row_count} rows and {sessions_event_count} unique session_ids in sessions table")
+        if print_counts:
+            count_query = f"SELECT count(), uniq(session_id) FROM {TARGET_TABLE}"
+            [(sessions_row_count, sessions_event_count)] = sync_execute(count_query, settings=SETTINGS)
+            logger.info(f"{sessions_row_count} rows and {sessions_event_count} unique session_ids in sessions table")
 
         if dry_run:
             count_query = f"SELECT count(), uniq(session_id) FROM ({select_query()})"
-            [(events_count, sessions_count)] = sync_execute(count_query)
+            [(events_count, sessions_count)] = sync_execute(count_query, settings=SETTINGS)
             logger.info(f"{events_count} events and {sessions_count} sessions to backfill for")
             logger.info(f"The first select query would be:\n{select_query(self.start_date)}")
             return
@@ -121,12 +128,17 @@ WHERE `$session_id` IS NOT NULL AND `$session_id` != '' AND {where}
         for i in range(num_days):
             date = self.start_date + timedelta(days=i)
             logging.info("Writing the sessions for day %s", date.strftime("%Y-%m-%d"))
-            sync_execute(f"""INSERT INTO writable_sessions {select_query(select_date=date)}""")
+            sync_execute(
+                query=f"""INSERT INTO writable_sessions {select_query(select_date=date)} SETTINGS max_execution_time=3600""",
+                workload=Workload.OFFLINE if self.use_offline_workload else Workload.DEFAULT,
+                settings=SETTINGS,
+            )
 
         # print the count of entries in the main sessions table
-        count_query = f"SELECT count(), uniq(session_id) FROM {TARGET_TABLE}"
-        [(sessions_row_count, sessions_event_count)] = sync_execute(count_query)
-        logger.info(f"{sessions_row_count} rows and {sessions_event_count} unique session_ids in sessions table")
+        if print_counts:
+            count_query = f"SELECT count(), uniq(session_id) FROM {TARGET_TABLE}"
+            [(sessions_row_count, sessions_event_count)] = sync_execute(count_query, settings=SETTINGS)
+            logger.info(f"{sessions_row_count} rows and {sessions_event_count} unique session_ids in sessions table")
 
 
 class Command(BaseCommand):
@@ -142,11 +154,28 @@ class Command(BaseCommand):
         parser.add_argument(
             "--live-run", action="store_true", help="actually execute INSERT queries (default is dry-run)"
         )
+        parser.add_argument(
+            "--use-offline-workload", action="store_true", help="actually execute INSERT queries (default is dry-run)"
+        )
+        parser.add_argument(
+            "--print-counts", action="store_true", help="print events and session count beforehand and afterwards"
+        )
 
-    def handle(self, *, live_run: bool, start_date: str, end_date: str, **options):
+    def handle(
+        self,
+        *,
+        live_run: bool,
+        start_date: str,
+        end_date: str,
+        use_offline_workload: bool,
+        print_counts: bool,
+        **options,
+    ):
         logger.setLevel(logging.INFO)
 
         start_datetime = datetime.strptime(start_date, "%Y-%m-%d")
         end_datetime = datetime.strptime(end_date, "%Y-%m-%d")
 
-        BackfillQuery(start_datetime, end_datetime).execute(dry_run=not live_run)
+        BackfillQuery(start_datetime, end_datetime, use_offline_workload).execute(
+            dry_run=not live_run, print_counts=print_counts
+        )

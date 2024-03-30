@@ -214,10 +214,30 @@
           {
               "key": "session",
               "type": "lazy_table",
-              "table": "events",
+              "table": "sessions",
               "fields": [
                   "id",
-                  "duration"
+                  "session_id",
+                  "team_id",
+                  "distinct_id",
+                  "min_timestamp",
+                  "max_timestamp",
+                  "urls",
+                  "entry_url",
+                  "exit_url",
+                  "initial_utm_source",
+                  "initial_utm_campaign",
+                  "initial_utm_medium",
+                  "initial_utm_term",
+                  "initial_utm_content",
+                  "initial_referring_domain",
+                  "initial_gclid",
+                  "initial_gad_source",
+                  "event_count_map",
+                  "pageview_count",
+                  "autocapture_count",
+                  "duration",
+                  "channel_type"
               ]
           }
       ],
@@ -269,9 +289,42 @@
                   "distinct_id",
                   "person_id"
               ]
+          },
+          {
+              "key": "$virt_initial_referring_domain_type",
+              "type": "expression"
+          },
+          {
+              "key": "$virt_initial_channel_type",
+              "type": "expression"
           }
       ],
       "person_distinct_ids": [
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "person_id",
+              "type": "string"
+          },
+          {
+              "key": "person",
+              "type": "lazy_table",
+              "table": "persons",
+              "fields": [
+                  "id",
+                  "created_at",
+                  "team_id",
+                  "properties",
+                  "is_identified",
+                  "pdi",
+                  "$virt_initial_referring_domain_type",
+                  "$virt_initial_channel_type"
+              ]
+          }
+      ],
+      "person_distinct_id_overrides": [
           {
               "key": "distinct_id",
               "type": "string"
@@ -535,6 +588,48 @@
               "type": "string"
           }
       ],
+      "sessions": [
+          {
+              "key": "id",
+              "type": "string"
+          },
+          {
+              "key": "session_id",
+              "type": "string"
+          },
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "min_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "max_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "urls",
+              "type": "array"
+          },
+          {
+              "key": "pageview_count",
+              "type": "integer"
+          },
+          {
+              "key": "autocapture_count",
+              "type": "integer"
+          },
+          {
+              "key": "duration",
+              "type": "integer"
+          },
+          {
+              "key": "channel_type",
+              "type": "string"
+          }
+      ],
       "raw_session_replay_events": [
           {
               "key": "session_id",
@@ -744,6 +839,39 @@
               "type": "integer"
           }
       ],
+      "raw_person_distinct_id_overrides": [
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "person_id",
+              "type": "string"
+          },
+          {
+              "key": "person",
+              "type": "lazy_table",
+              "table": "persons",
+              "fields": [
+                  "id",
+                  "created_at",
+                  "team_id",
+                  "properties",
+                  "is_identified",
+                  "pdi",
+                  "$virt_initial_referring_domain_type",
+                  "$virt_initial_channel_type"
+              ]
+          },
+          {
+              "key": "is_deleted",
+              "type": "boolean"
+          },
+          {
+              "key": "version",
+              "type": "integer"
+          }
+      ],
       "raw_person_overrides": [
           {
               "key": "old_person_id",
@@ -767,6 +895,40 @@
           },
           {
               "key": "version",
+              "type": "integer"
+          }
+      ],
+      "raw_sessions": [
+          {
+              "key": "id",
+              "type": "string"
+          },
+          {
+              "key": "session_id",
+              "type": "string"
+          },
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "min_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "max_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "urls",
+              "type": "array"
+          },
+          {
+              "key": "pageview_count",
+              "type": "integer"
+          },
+          {
+              "key": "autocapture_count",
               "type": "integer"
           }
       ],
@@ -989,10 +1151,30 @@
           {
               "key": "session",
               "type": "lazy_table",
-              "table": "events",
+              "table": "sessions",
               "fields": [
                   "id",
-                  "duration"
+                  "session_id",
+                  "team_id",
+                  "distinct_id",
+                  "min_timestamp",
+                  "max_timestamp",
+                  "urls",
+                  "entry_url",
+                  "exit_url",
+                  "initial_utm_source",
+                  "initial_utm_campaign",
+                  "initial_utm_medium",
+                  "initial_utm_term",
+                  "initial_utm_content",
+                  "initial_referring_domain",
+                  "initial_gclid",
+                  "initial_gad_source",
+                  "event_count_map",
+                  "pageview_count",
+                  "autocapture_count",
+                  "duration",
+                  "channel_type"
               ]
           }
       ],
@@ -1044,9 +1226,42 @@
                   "distinct_id",
                   "person_id"
               ]
+          },
+          {
+              "key": "$virt_initial_referring_domain_type",
+              "type": "expression"
+          },
+          {
+              "key": "$virt_initial_channel_type",
+              "type": "expression"
           }
       ],
       "person_distinct_ids": [
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "person_id",
+              "type": "string"
+          },
+          {
+              "key": "person",
+              "type": "lazy_table",
+              "table": "persons",
+              "fields": [
+                  "id",
+                  "created_at",
+                  "team_id",
+                  "properties",
+                  "is_identified",
+                  "pdi",
+                  "$virt_initial_referring_domain_type",
+                  "$virt_initial_channel_type"
+              ]
+          }
+      ],
+      "person_distinct_id_overrides": [
           {
               "key": "distinct_id",
               "type": "string"
@@ -1310,6 +1525,48 @@
               "type": "string"
           }
       ],
+      "sessions": [
+          {
+              "key": "id",
+              "type": "string"
+          },
+          {
+              "key": "session_id",
+              "type": "string"
+          },
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "min_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "max_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "urls",
+              "type": "array"
+          },
+          {
+              "key": "pageview_count",
+              "type": "integer"
+          },
+          {
+              "key": "autocapture_count",
+              "type": "integer"
+          },
+          {
+              "key": "duration",
+              "type": "integer"
+          },
+          {
+              "key": "channel_type",
+              "type": "string"
+          }
+      ],
       "raw_session_replay_events": [
           {
               "key": "session_id",
@@ -1519,6 +1776,39 @@
               "type": "integer"
           }
       ],
+      "raw_person_distinct_id_overrides": [
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "person_id",
+              "type": "string"
+          },
+          {
+              "key": "person",
+              "type": "lazy_table",
+              "table": "persons",
+              "fields": [
+                  "id",
+                  "created_at",
+                  "team_id",
+                  "properties",
+                  "is_identified",
+                  "pdi",
+                  "$virt_initial_referring_domain_type",
+                  "$virt_initial_channel_type"
+              ]
+          },
+          {
+              "key": "is_deleted",
+              "type": "boolean"
+          },
+          {
+              "key": "version",
+              "type": "integer"
+          }
+      ],
       "raw_person_overrides": [
           {
               "key": "old_person_id",
@@ -1542,6 +1832,40 @@
           },
           {
               "key": "version",
+              "type": "integer"
+          }
+      ],
+      "raw_sessions": [
+          {
+              "key": "id",
+              "type": "string"
+          },
+          {
+              "key": "session_id",
+              "type": "string"
+          },
+          {
+              "key": "distinct_id",
+              "type": "string"
+          },
+          {
+              "key": "min_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "max_timestamp",
+              "type": "datetime"
+          },
+          {
+              "key": "urls",
+              "type": "array"
+          },
+          {
+              "key": "pageview_count",
+              "type": "integer"
+          },
+          {
+              "key": "autocapture_count",
               "type": "integer"
           }
       ],
